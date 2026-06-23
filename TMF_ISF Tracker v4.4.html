@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TMF/ISF Document Tracker v4.4</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
     <style>
         :root { 
             --bayer-teal: #10857F; 
@@ -823,9 +823,402 @@
 
         function loadFromStorage() { try { const saved = localStorage.getItem(STORAGE_KEY); if (saved) { const data = JSON.parse(saved); allSitesData = data.allSitesData || {}; currentSiteKey = data.currentSiteKey || null; if (currentSiteKey && allSitesData[currentSiteKey]) loadCurrentSiteData(); } } catch (e) { console.error('Error loading from localStorage:', e); } }
 
-        function exportToExcel() { if (!currentSiteKey) { alert('Please select a site first.'); return; } const wb = XLSX.utils.book_new(); const allDocs = [...siteDocuments, ...countryDocuments, ...studyDocuments]; if (allDocs.length > 0) { const data = [['TMF/ISF TRACKER - ALL DOCUMENTS'],[`Study: ${siteInfo.studyNumber} | Country: ${siteInfo.country} | Site: ${siteInfo.siteNumber}`],[`Generated: ${formatDate(new Date())}`],[],['Status','Document Name','Classification','Level','Date','Version','In ISF','Reviewed','Comments']]; allDocs.forEach(doc => { const key = generateKey(doc); const tracking = isfTracking[key] || {}; const status = getStatus(doc); const statusText = status === 'filed' ? '✓ Filed' : status === 'new' ? 'New' : status === 'update' ? 'Update' : 'N/A'; data.push([statusText,doc.name,doc.classification,getDocumentLevel(doc),formatDate(doc.docDate),`${doc.majorVersion}.${doc.minorVersion}`,tracking.inIsf || '',formatDate(tracking.dateReviewed),tracking.comments || '']); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'All Documents'); } if (staffList.length > 0) { const staffData = [['STAFF DETAILS'],[`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],[],['Name','Role','Delegation Start','Delegation Stop','Status','Med License Expiry','EDC','IRT','ePRO','Imaging','Labs','Training Count']]; staffList.forEach(staff => { staffData.push([staff.name,staff.role === 'Other' ? staff.roleOther : staff.role,staff.delegationStartDate || '',staff.delegationStopDate || '',staff.delegationStopDate ? 'Inactive' : 'Active',staff.medLicenseExpiryDate || '',staff.systemsAccess.EDC || 'N/A',staff.systemsAccess.IRT || 'N/A',staff.systemsAccess.ePRO || 'N/A',staff.systemsAccess.Imaging || 'N/A',staff.systemsAccess.Labs || 'N/A',staff.training.length]); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(staffData), 'Staff'); } if (patients.length > 0) { const consentData = [['PATIENT CONSENTS'],[`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],[],['Patient ID','Status','Consent Type','Version','Date Signed','Date Reviewed','Investigator','1st Visit?','Discussion?','Comments']]; patients.forEach(patient => { const consents = patientConsents.filter(c => c.patientId === patient.id); consents.forEach(consent => { const picf = picfVersions.find(p => p.id === consent.picfVersionId); const inv = staffList.find(s => s.id === consent.investigator); consentData.push([patient.patientId,patient.status,picf ? picf.type : '',picf ? picf.version : '',consent.isNA ? 'N/A' : (consent.dateSigned || ''),consent.dateReviewed || '',inv ? inv.name : '',consent.firstVisitAfterApproval ? 'Yes' : 'No',consent.discussionDocumented ? 'Yes' : 'No',consent.comments || '']); }); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(consentData), 'Patient Consents'); } const isfData = [['ISF-ONLY DOCUMENTS'],[`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],[],['Document Name','In ISF','Version','Comments']]; isfOnlyDocs.forEach(doc => { isfData.push([doc.name,doc.inIsf ? '✓' : '',doc.version || '',doc.comments || '']); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(isfData), 'ISF-Only'); if (ipShipments.length > 0) { const shipData = [['IP SHIPMENTS'],[],['Consignment #','Date Received','Packing List','IRT Confirmation','Temp Logger','Temp Excursion','Comments']]; ipShipments.forEach(s => { shipData.push([s.consignmentNumber,formatDate(s.dateReceived),s.packingListISF ? '✓' : '',s.irtConfirmation ? '✓' : '',s.tempLoggerISF ? '✓' : '',s.tempExcursion,s.comments || '']); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(shipData), 'IP Shipments'); } if (handovers.length > 0) { const handoverData = [['CRA HANDOVER LOG'],[],['Date','From','To','Comments']]; handovers.forEach(h => { handoverData.push([formatDate(h.date),h.from,h.to,h.comments || '']); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(handoverData), 'Handovers'); } if (manualDocuments.length > 0) { const manualData = [['MANUAL DOCUMENTS'],[`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],[],['Tab','Document Name','Classification','Version','Date','In ISF','Reviewed','Comments']]; manualDocuments.forEach(doc => { const key = generateKey(doc); const tracking = isfTracking[key] || {}; manualData.push([doc.targetTab,doc.name,doc.classification || '',`${doc.majorVersion}.${doc.minorVersion}`,formatDate(doc.docDate),tracking.inIsf || '',formatDate(tracking.dateReviewed),tracking.comments || '']); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(manualData), 'Manual Documents'); } const today = new Date(); const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; XLSX.writeFile(wb, `${siteInfo.studyNumber}_${siteInfo.siteNumber}_Tracker_${siteInfo.country}_${dateStr}.xlsx`); }
+        function exportToExcel() {
+            if (!currentSiteKey) { alert('Please select a site first.'); return; }
 
-        function importTrackerData(event) { const file = event.target.files[0]; if (!file) return; if (!currentSiteKey) { alert('Please select or create a site first.'); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = e => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type:'array',cellDates:true}); let importedDocs = 0; if (workbook.Sheets['All Documents']) { const sheet = workbook.Sheets['All Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:4}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; isfTracking[key] = {inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:false}; importedDocs++; } }); } if (workbook.Sheets['ISF-Only']) { const sheet = workbook.Sheets['ISF-Only']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); isfOnlyDocs = rows.filter(r => r['Document Name']).map(row => ({name:row['Document Name'] || '',inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes',version:row['Version'] || '',comments:row['Comments'] || ''})); } if (workbook.Sheets['Handovers']) { const sheet = workbook.Sheets['Handovers']; const rows = XLSX.utils.sheet_to_json(sheet, {range:2}); handovers = rows.filter(r => r['From'] && r['To']).map(row => ({id:generateId(),date:row['Date'] || '',from:row['From'] || '',to:row['To'] || '',comments:row['Comments'] || ''})); } if (workbook.Sheets['Manual Documents']) { const sheet = workbook.Sheets['Manual Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); manualDocuments = rows.filter(r => r['Document Name']).map(row => { const vParts = (row['Version'] || '1.0').toString().split('.'); const doc = {id:generateId(), name:row['Document Name'] || '', classification:row['Classification'] || '', majorVersion:parseInt(vParts[0]) || 1, minorVersion:parseInt(vParts[1]) || 0, docDate:row['Date'] || '', title:'', status:'', country:'', studySite:'', isManual:true, targetTab:row['Tab'] || 'misc'}; const key = generateKey(doc); if (!isfTracking[key]) { const pastDate = new Date(Date.now() - 86400000).toISOString(); isfTracking[key] = {inIsf:row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:pastDate,lastSeen:pastDate,isNA:false}; } return doc; }); } lastUploadDate = new Date().toISOString(); saveCurrentSiteData(); saveToStorage(); renderAll(); alert(`✅ Import complete!\n\nImported tracking data for ${importedDocs} documents.`); document.getElementById('lastUpload').textContent = `Last import: ${formatDate(lastUploadDate)}`; } catch (err) { alert('❌ Error importing file: ' + err.message); console.error(err); } }; reader.readAsArrayBuffer(file); event.target.value = ''; }
+            const HEADER_STYLE = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 }, fill: { fgColor: { rgb: "2F5496" } }, alignment: { horizontal: "center", vertical: "center" } };
+            const TITLE_STYLE = { font: { bold: true, sz: 14 }, alignment: { horizontal: "left" } };
+            const SUBTITLE_STYLE = { font: { bold: true, sz: 11 }, alignment: { horizontal: "left" } };
+            const STATUS_FILLS = {
+                filed: { fgColor: { rgb: "C6EFCE" } },
+                update: { fgColor: { rgb: "FFEB9C" } },
+                new: { fgColor: { rgb: "FFEB9C" } },
+                na: { fgColor: { rgb: "D9D9D9" } }
+            };
+
+            function getStatusText(status) { return status === 'filed' ? 'Filed' : status === 'new' ? 'Pending' : status === 'update' ? 'Pending' : 'N/A'; }
+
+            function autoFitCols(data) {
+                if (!data || data.length === 0) return [];
+                const colCount = Math.max(...data.map(r => r.length));
+                const widths = [];
+                for (let c = 0; c < colCount; c++) {
+                    let max = 10;
+                    data.forEach(row => { if (row[c] != null) { const len = String(row[c]).length; if (len > max) max = len; } });
+                    widths.push({ wch: Math.min(max + 2, 50) });
+                }
+                return widths;
+            }
+
+            function styledSheet(data, headerRowIndex, statusColIndex) {
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                // Style header row
+                if (headerRowIndex >= 0) {
+                    for (let c = range.s.c; c <= range.e.c; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: headerRowIndex, c: c });
+                        if (ws[addr]) ws[addr].s = HEADER_STYLE;
+                    }
+                }
+                // Style title rows (before header)
+                for (let r = 0; r < headerRowIndex; r++) {
+                    for (let c = range.s.c; c <= range.e.c; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                        if (ws[addr]) ws[addr].s = r === 0 ? TITLE_STYLE : SUBTITLE_STYLE;
+                    }
+                }
+                // Colour-code data rows based on status column
+                if (statusColIndex >= 0) {
+                    for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
+                        const statusAddr = XLSX.utils.encode_cell({ r: r, c: statusColIndex });
+                        const statusVal = ws[statusAddr] ? String(ws[statusAddr].v || '').toLowerCase() : '';
+                        let fill = null;
+                        if (statusVal === 'filed') fill = STATUS_FILLS.filed;
+                        else if (statusVal === 'pending') fill = STATUS_FILLS.update;
+                        else if (statusVal === 'new') fill = STATUS_FILLS.new;
+                        else if (statusVal === 'n/a') fill = STATUS_FILLS.na;
+                        if (fill) {
+                            for (let c = range.s.c; c <= range.e.c; c++) {
+                                const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                                if (ws[addr]) ws[addr].s = { fill: fill };
+                                else ws[addr] = { v: '', s: { fill: fill } };
+                            }
+                        }
+                    }
+                }
+                ws['!cols'] = autoFitCols(data);
+                return ws;
+            }
+
+            // Gather all documents
+            const allDocs = [...siteDocuments, ...countryDocuments, ...studyDocuments, ...manualDocuments];
+
+            // Tab definitions for document sheets
+            const tabDefs = [
+                { id: 'staff', name: 'Staff', classifications: staffClassifications, hasLevel: false, hasVersion: false, hasCategory: false },
+                { id: 'consent', name: 'Consent', classifications: icfClassifications, hasLevel: false, hasVersion: true, hasCategory: false },
+                { id: 'irb', name: 'IRB-IEC', classifications: irbClassifications, hasLevel: true, hasVersion: false, hasCategory: true },
+                { id: 'protocol', name: 'Protocol-IB', classifications: [...protocolClassifications, ...pspClassifications, ...ibClassifications, ...ibAorClassifications], hasLevel: false, hasVersion: true, hasCategory: false },
+                { id: 'ip', name: 'IP', classifications: ipClassifications, hasLevel: false, hasVersion: false, hasCategory: false },
+                { id: 'labs', name: 'Labs', classifications: labClassifications, hasLevel: false, hasVersion: false, hasCategory: false },
+                { id: 'monitoring', name: 'Monitoring', classifications: monitoringClassifications, hasLevel: false, hasVersion: false, hasCategory: false },
+                { id: 'correspondence', name: 'Correspondence', classifications: correspondenceClassifications, hasLevel: true, hasVersion: false, hasCategory: false },
+                { id: 'legal', name: 'Legal', classifications: legalClassifications, hasLevel: true, hasVersion: false, hasCategory: false },
+                { id: 'setup', name: 'Setup', classifications: setupClassifications, hasLevel: false, hasVersion: false, hasCategory: false },
+                { id: 'manuals', name: 'Manuals', classifications: manualsClassifications, hasLevel: false, hasVersion: true, hasCategory: false },
+                { id: 'misc', name: 'Misc', classifications: [], hasLevel: true, hasVersion: false, hasCategory: false }
+            ];
+
+            // Classify documents into tabs (respecting movedDocs)
+            function getDocsForExportTab(tabId) {
+                const tabClassifications = tabDefs.find(t => t.id === tabId).classifications;
+                const baseDocs = tabId === 'misc'
+                    ? allDocs.filter(doc => {
+                        const allClassified = [...staffClassifications,...icfClassifications,...irbClassifications,...protocolClassifications,...pspClassifications,...ibClassifications,...ibAorClassifications,...ipClassifications,...labClassifications,...monitoringClassifications,...correspondenceClassifications,...legalClassifications,...setupClassifications,...manualsClassifications];
+                        return !allClassified.includes(doc.classification) || (doc.isManual && doc.targetTab === 'misc');
+                    })
+                    : allDocs.filter(doc => tabClassifications.includes(doc.classification) || (doc.isManual && doc.targetTab === tabId));
+                // Apply moved docs logic
+                const filtered = baseDocs.filter(doc => {
+                    const key = generateKey(doc);
+                    const move = movedDocs[key];
+                    if (!move) return true;
+                    return move.targetTab === tabId;
+                });
+                const movedIn = allDocs.filter(doc => {
+                    const key = generateKey(doc);
+                    const move = movedDocs[key];
+                    return move && move.targetTab === tabId && !baseDocs.includes(doc);
+                });
+                return [...filtered, ...movedIn];
+            }
+
+            // Summary stats per tab
+            function getTabStats(tabId) {
+                const docs = getDocsForExportTab(tabId);
+                let total = 0, filed = 0, pending = 0;
+                docs.forEach(doc => {
+                    const status = getStatus(doc);
+                    if (status === 'na') return;
+                    total++;
+                    if (status === 'filed') filed++;
+                    else if (status === 'update' || status === 'new') pending++;
+                });
+                return { total, filed, pending };
+            }
+
+            const wb = XLSX.utils.book_new();
+
+            // === SUMMARY SHEET ===
+            const summaryData = [
+                ['TMF/ISF RECONCILIATION REPORT'],
+                [''],
+                [`Study: ${siteInfo.studyNumber}`],
+                [`Country: ${siteInfo.country}`],
+                [`Site: ${siteInfo.siteNumber}`],
+                [`PI: ${siteInfo.piName || 'N/A'}`],
+                [`Export Date: ${formatDate(new Date())}`],
+                [''],
+                ['Section', 'Total', 'Filed', 'Pending']
+            ];
+            tabDefs.forEach(tab => {
+                const stats = getTabStats(tab.id);
+                summaryData.push([tab.name, stats.total, stats.filed, stats.pending]);
+            });
+            // Add overall total row
+            const overallStats = { total: 0, filed: 0, pending: 0 };
+            tabDefs.forEach(tab => { const s = getTabStats(tab.id); overallStats.total += s.total; overallStats.filed += s.filed; overallStats.pending += s.pending; });
+            summaryData.push(['']);
+            summaryData.push(['TOTAL', overallStats.total, overallStats.filed, overallStats.pending]);
+
+            const summaryWs = styledSheet(summaryData, 8, -1);
+            // Style the total row
+            const totalRowIdx = summaryData.length - 1;
+            for (let c = 0; c <= 3; c++) {
+                const addr = XLSX.utils.encode_cell({ r: totalRowIdx, c: c });
+                if (summaryWs[addr]) summaryWs[addr].s = { font: { bold: true, sz: 11 }, fill: { fgColor: { rgb: "D9E2F3" } } };
+            }
+            XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+            // === PER-TAB DOCUMENT SHEETS ===
+            tabDefs.forEach(tab => {
+                const docs = getDocsForExportTab(tab.id);
+                // Build column headers
+                const headers = ['Status', 'Document Name', 'Classification'];
+                if (tab.hasLevel) headers.push('Level');
+                if (tab.hasVersion) headers.push('Version');
+                headers.push('Date');
+                if (tab.hasCategory) headers.push('Category');
+                headers.push('In ISF?', 'Reviewed', 'Comments');
+
+                const data = [
+                    [`${tab.name.toUpperCase()} DOCUMENTS`],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber} | ${formatDate(new Date())}`],
+                    [''],
+                    headers
+                ];
+
+                docs.forEach(doc => {
+                    const key = generateKey(doc);
+                    const tracking = isfTracking[key] || {};
+                    const status = getStatus(doc);
+                    const row = [getStatusText(status), doc.name, doc.classification || ''];
+                    if (tab.hasLevel) row.push(getDocumentLevel(doc));
+                    if (tab.hasVersion) row.push(`${doc.majorVersion}.${doc.minorVersion}`);
+                    row.push(formatDate(doc.docDate));
+                    if (tab.hasCategory) row.push(hrecCategories[key] || '');
+                    row.push(tracking.inIsf === 'Yes' ? 'Yes' : '', formatDate(tracking.dateReviewed), tracking.comments || '');
+                    data.push(row);
+                });
+
+                if (docs.length === 0) {
+                    data.push(['No documents in this section']);
+                }
+
+                const ws = styledSheet(data, 3, 0);
+                XLSX.utils.book_append_sheet(wb, ws, tab.name);
+            });
+
+            // === STAFF DETAILS SHEET ===
+            if (staffList.length > 0) {
+                const staffData = [
+                    ['STAFF DETAILS'],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                    [''],
+                    ['Name', 'Role', 'Delegation Start', 'Delegation Stop', 'Status', 'Med License Expiry', 'EDC', 'IRT', 'ePRO', 'Imaging', 'Labs', 'Training Count']
+                ];
+                staffList.forEach(staff => {
+                    staffData.push([
+                        staff.name,
+                        staff.role === 'Other' ? staff.roleOther : staff.role,
+                        staff.delegationStartDate || '',
+                        staff.delegationStopDate || '',
+                        staff.delegationStopDate ? 'Inactive' : 'Active',
+                        staff.medLicenseExpiryDate || '',
+                        staff.systemsAccess.EDC || 'N/A',
+                        staff.systemsAccess.IRT || 'N/A',
+                        staff.systemsAccess.ePRO || 'N/A',
+                        staff.systemsAccess.Imaging || 'N/A',
+                        staff.systemsAccess.Labs || 'N/A',
+                        staff.training.length
+                    ]);
+                });
+                const ws = styledSheet(staffData, 3, -1);
+                // Colour active/inactive rows
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (let r = 4; r <= range.e.r; r++) {
+                    const statusAddr = XLSX.utils.encode_cell({ r: r, c: 4 });
+                    const val = ws[statusAddr] ? String(ws[statusAddr].v || '') : '';
+                    const fill = val === 'Active' ? STATUS_FILLS.filed : STATUS_FILLS.na;
+                    for (let c = range.s.c; c <= range.e.c; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                        if (ws[addr]) ws[addr].s = { fill: fill };
+                        else ws[addr] = { v: '', s: { fill: fill } };
+                    }
+                }
+                XLSX.utils.book_append_sheet(wb, ws, 'Staff Details');
+
+                // === STAFF QUALIFICATIONS MATRIX ===
+                const CELL_GREEN = { fill: { fgColor: { rgb: "C6EFCE" } } };
+                const CELL_RED = { fill: { fgColor: { rgb: "FFC7CE" } } };
+                const CELL_GREY = { fill: { fgColor: { rgb: "D9D9D9" } } };
+                const qualData = [
+                    ['STAFF QUALIFICATIONS MATRIX'],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                    [''],
+                    ['Name', 'Role', 'Privacy', 'CV', 'Med License', 'GCP', 'FDF', 'IATA', 'Systems', 'Status']
+                ];
+                staffList.forEach(staff => {
+                    const needsMed = requiresMedLicense(staff.role);
+                    const privacy = staff.documents && staff.documents.privacy ? 'Yes' : 'No';
+                    const cv = staff.documents && staff.documents.cv ? 'Yes' : 'No';
+                    const medLicense = needsMed ? (staff.documents && staff.documents.medLicense ? 'Yes' : 'No') : 'N-A';
+                    const gcp = staff.documents && staff.documents.gcp ? 'Yes' : 'No';
+                    const fdf = needsMed ? (staff.documents && staff.documents.fdf ? 'Yes' : 'No') : 'N-A';
+                    const iata = staff.documents && staff.documents.iata ? 'Yes' : 'N-A';
+                    const systemsArr = ['EDC','IRT','ePRO','Imaging','Labs'];
+                    const systemsActive = systemsArr.filter(s => staff.systemsAccess[s] === 'Yes').length;
+                    const systemsTotal = systemsArr.filter(s => staff.systemsAccess[s] !== 'N/A').length;
+                    const systems = systemsTotal > 0 ? `${systemsActive}/${systemsTotal}` : 'N-A';
+                    const status = staff.delegationStopDate ? 'Inactive' : 'Active';
+                    qualData.push([staff.name, staff.role === 'Other' ? staff.roleOther : staff.role, privacy, cv, medLicense, gcp, fdf, iata, systems, status]);
+                });
+                const qualWs = styledSheet(qualData, 3, -1);
+                // Apply per-cell colour coding for qualification columns (cols 2-7)
+                const qualRange = XLSX.utils.decode_range(qualWs['!ref']);
+                for (let r = 4; r <= qualRange.e.r; r++) {
+                    for (let c = 2; c <= 7; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                        const val = qualWs[addr] ? String(qualWs[addr].v || '') : '';
+                        if (val === 'Yes') qualWs[addr].s = CELL_GREEN;
+                        else if (val === 'No') qualWs[addr].s = CELL_RED;
+                        else if (val === 'N-A') qualWs[addr].s = CELL_GREY;
+                    }
+                    // Status column colour
+                    const statusAddr = XLSX.utils.encode_cell({ r: r, c: 9 });
+                    const statusVal = qualWs[statusAddr] ? String(qualWs[statusAddr].v || '') : '';
+                    if (statusVal === 'Active') qualWs[statusAddr].s = CELL_GREEN;
+                    else if (statusVal === 'Inactive') qualWs[statusAddr].s = CELL_GREY;
+                }
+                XLSX.utils.book_append_sheet(wb, qualWs, 'Staff Qualifications');
+            }
+
+            // === PATIENT CONSENTS SHEET ===
+            if (patients.length > 0) {
+                const consentData = [
+                    ['PATIENT CONSENTS'],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                    [''],
+                    ['Patient ID', 'Status', 'Consent Type', 'Version', 'Date Signed', 'Date Reviewed', 'Investigator', '1st Visit?', 'Discussion?', 'Comments']
+                ];
+                patients.forEach(patient => {
+                    const consents = patientConsents.filter(c => c.patientId === patient.id);
+                    if (consents.length === 0) {
+                        consentData.push([patient.patientId, patient.status, '', '', '', '', '', '', '', '']);
+                    } else {
+                        consents.forEach(consent => {
+                            const picf = picfVersions.find(p => p.id === consent.picfVersionId);
+                            const inv = staffList.find(s => s.id === consent.investigator);
+                            consentData.push([
+                                patient.patientId, patient.status,
+                                picf ? picf.type : '', picf ? picf.version : '',
+                                consent.isNA ? 'N/A' : (consent.dateSigned || ''),
+                                consent.dateReviewed || '',
+                                inv ? inv.name : '',
+                                consent.firstVisitAfterApproval ? 'Yes' : 'No',
+                                consent.discussionDocumented ? 'Yes' : 'No',
+                                consent.comments || ''
+                            ]);
+                        });
+                    }
+                });
+                const ws = styledSheet(consentData, 3, -1);
+                XLSX.utils.book_append_sheet(wb, ws, 'Patient Consents');
+            }
+
+            // === ISF-ONLY SHEET ===
+            const isfData = [
+                ['ISF-ONLY DOCUMENTS'],
+                [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                [''],
+                ['Document Name', 'In ISF?', 'Version', 'Comments']
+            ];
+            isfOnlyDocs.forEach(doc => {
+                isfData.push([doc.name, doc.inIsf ? 'Yes' : 'No', doc.version || '', doc.comments || '']);
+            });
+            const isfWs = styledSheet(isfData, 3, -1);
+            // Colour ISF-Only rows
+            const isfRange = XLSX.utils.decode_range(isfWs['!ref']);
+            for (let r = 4; r <= isfRange.e.r; r++) {
+                const inIsfAddr = XLSX.utils.encode_cell({ r: r, c: 1 });
+                const val = isfWs[inIsfAddr] ? String(isfWs[inIsfAddr].v || '') : '';
+                const fill = val === 'Yes' ? STATUS_FILLS.filed : STATUS_FILLS.update;
+                for (let c = isfRange.s.c; c <= isfRange.e.c; c++) {
+                    const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                    if (isfWs[addr]) isfWs[addr].s = { fill: fill };
+                    else isfWs[addr] = { v: '', s: { fill: fill } };
+                }
+            }
+            XLSX.utils.book_append_sheet(wb, isfWs, 'ISF-Only');
+
+            // === IP SHIPMENTS SHEET ===
+            if (ipShipments.length > 0) {
+                const shipData = [
+                    ['IP SHIPMENTS'],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                    [''],
+                    ['Consignment #', 'Date Received', 'Packing List (ISF)', 'IRT Confirmation', 'Temp Logger (ISF)', 'Temp Excursion?', 'Comments']
+                ];
+                ipShipments.forEach(s => {
+                    shipData.push([
+                        s.consignmentNumber || '',
+                        formatDate(s.dateReceived),
+                        s.packingListISF ? 'Yes' : 'No',
+                        s.irtConfirmation ? 'Yes' : 'No',
+                        s.tempLoggerISF ? 'Yes' : 'No',
+                        s.tempExcursion || 'No',
+                        s.comments || ''
+                    ]);
+                });
+                const ws = styledSheet(shipData, 3, -1);
+                XLSX.utils.book_append_sheet(wb, ws, 'IP Shipments');
+            }
+
+            // === HANDOVER SHEET ===
+            if (handovers.length > 0) {
+                const handoverData = [
+                    ['CRA HANDOVER LOG'],
+                    [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
+                    [''],
+                    ['Date', 'From', 'To', 'Comments']
+                ];
+                handovers.forEach(h => {
+                    handoverData.push([formatDate(h.date), h.from, h.to, h.comments || '']);
+                });
+                const ws = styledSheet(handoverData, 3, -1);
+                XLSX.utils.book_append_sheet(wb, ws, 'Handover');
+            }
+
+            // Write file
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            XLSX.writeFile(wb, `${siteInfo.studyNumber}_${siteInfo.siteNumber}_Report_${siteInfo.country}_${dateStr}.xlsx`);
+        }
+
+        function importTrackerData(event) { const file = event.target.files[0]; if (!file) return; if (!currentSiteKey) { alert('Please select or create a site first.'); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = e => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type:'array',cellDates:true}); let importedDocs = 0;
+            // Import from legacy 'All Documents' sheet (old format)
+            if (workbook.Sheets['All Documents']) { const sheet = workbook.Sheets['All Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:4}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; isfTracking[key] = {inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:false}; importedDocs++; } }); }
+            // Import from new per-tab sheets (new format)
+            const tabSheetNames = ['Staff','Consent','IRB-IEC','Protocol-IB','IP','Labs','Monitoring','Correspondence','Legal','Setup','Manuals','Misc'];
+            tabSheetNames.forEach(sheetName => { if (workbook.Sheets[sheetName]) { const sheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; if (!isfTracking[key]) { isfTracking[key] = {inIsf:row['In ISF?'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:row['Status'] === 'N/A',isfVersion:''}; } else { if (row['In ISF?'] === 'Yes') isfTracking[key].inIsf = 'Yes'; if (row['Comments']) isfTracking[key].comments = row['Comments']; if (row['Reviewed']) isfTracking[key].dateReviewed = row['Reviewed']; } importedDocs++; } }); } });
+            // ISF-Only sheet (supports both old '✓' and new 'Yes' format)
+            if (workbook.Sheets['ISF-Only']) { const sheet = workbook.Sheets['ISF-Only']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); isfOnlyDocs = rows.filter(r => r['Document Name']).map(row => ({name:row['Document Name'] || '',inIsf:row['In ISF?'] === '✓' || row['In ISF?'] === 'Yes' || row['In ISF'] === '✓' || row['In ISF'] === 'Yes',version:row['Version'] || '',comments:row['Comments'] || ''})); }
+            // Handover sheet (supports both old 'Handovers' and new 'Handover' name)
+            const handoverSheet = workbook.Sheets['Handover'] || workbook.Sheets['Handovers'];
+            if (handoverSheet) { const rows = XLSX.utils.sheet_to_json(handoverSheet, {range:3}); handovers = rows.filter(r => r['From'] && r['To']).map(row => ({id:generateId(),date:row['Date'] || '',from:row['From'] || '',to:row['To'] || '',comments:row['Comments'] || ''})); }
+            // Manual Documents (legacy format only)
+            if (workbook.Sheets['Manual Documents']) { const sheet = workbook.Sheets['Manual Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); manualDocuments = rows.filter(r => r['Document Name']).map(row => { const vParts = (row['Version'] || '1.0').toString().split('.'); const doc = {id:generateId(), name:row['Document Name'] || '', classification:row['Classification'] || '', majorVersion:parseInt(vParts[0]) || 1, minorVersion:parseInt(vParts[1]) || 0, docDate:row['Date'] || '', title:'', status:'', country:'', studySite:'', isManual:true, targetTab:row['Tab'] || 'misc'}; const key = generateKey(doc); if (!isfTracking[key]) { const pastDate = new Date(Date.now() - 86400000).toISOString(); isfTracking[key] = {inIsf:row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:pastDate,lastSeen:pastDate,isNA:false}; } return doc; }); }
+            lastUploadDate = new Date().toISOString(); saveCurrentSiteData(); saveToStorage(); renderAll(); alert(`✅ Import complete!\n\nImported tracking data for ${importedDocs} documents.`); document.getElementById('lastUpload').textContent = `Last import: ${formatDate(lastUploadDate)}`; } catch (err) { alert('❌ Error importing file: ' + err.message); console.error(err); } }; reader.readAsArrayBuffer(file); event.target.value = ''; }
     </script>
 </body>
 </html>

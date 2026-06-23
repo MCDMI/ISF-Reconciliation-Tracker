@@ -9,7 +9,7 @@ This is a collection of operational tools for clinical trial document management
 ## Running the Application
 
 - Open the most recent `TMF_ISF Tracker vX.X.html` file directly in a browser. No build step required.
-- External dependency: SheetJS (xlsx 0.18.5) loaded from CDN at runtime.
+- External dependency: xlsx-js-style (1.2.0) loaded from CDN at runtime. This is a fork of SheetJS that supports cell styling on write.
 - Data persists in browser localStorage. Key may vary by version — check the current file if needed.
 
 ## Architecture (TMF_ISF Tracker)
@@ -19,7 +19,20 @@ Single HTML file (~800 lines) containing all CSS, JavaScript, and markup. No fra
 ### Data Layer
 - All state stored in localStorage as a JSON object (`allSitesData`) keyed by site
 - Each site contains: `siteDocuments`, `countryDocuments`, `studyDocuments`, `isfTracking`, `staffList`, `patients`, `patientConsents`, `picfVersions`, `ipShipments`, `relabelingEntries`, `pharmacyTempLogs`, `sampleTempLogs`, `pharmacyCalibration`, `sampleCalibration`, `localLabs`, `handovers`
-- Excel import/export via SheetJS (XLSX library)
+- Excel import/export via xlsx-js-style (SheetJS fork with styling support)
+
+### Excel Export (exportToExcel)
+The export was rebuilt in this session to produce a formatted multi-sheet report. Current state:
+- **Summary sheet**: site info, export date, per-section status table (Total/Filed/Pending)
+- **12 per-tab document sheets**: Staff, Consent, IRB-IEC, Protocol-IB, IP, Labs, Monitoring, Correspondence, Legal, Setup, Manuals, Misc
+- **Supplementary sheets**: Staff Details, Staff Qualifications (matrix with per-cell colour), Patient Consents, ISF-Only, IP Shipments, Handover
+- **Styling**: dark blue headers with white bold text, row colour coding (green=Filed, amber=Pending, grey=N/A), auto-fit column widths
+- **Import**: updated to handle both old format (single 'All Documents' sheet) and new per-tab format
+
+#### Remaining export work (not yet implemented):
+1. Consent sheet needs two sections: PICF Version Management table + Patient Consent Tracker (per-patient with amber/green colour coding)
+2. Tab summary metrics block at top of each sheet (matching the summary metrics shown in the tracker UI for each tab)
+
 
 ### UI Structure (15 tabs)
 Dashboard | Staff | Consent | IRB/IEC | Protocol/IB | IP | Labs | Monitoring | Correspondence | Legal | Setup | Manuals | Misc | ISF-Only | Handover
