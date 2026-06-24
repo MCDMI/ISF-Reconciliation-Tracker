@@ -26,12 +26,8 @@ The export was rebuilt in this session to produce a formatted multi-sheet report
 - **Summary sheet**: site info, export date, per-section status table (Total/Filed/Pending)
 - **12 per-tab document sheets**: Staff, Consent, IRB-IEC, Protocol-IB, IP, Labs, Monitoring, Correspondence, Legal, Setup, Manuals, Misc
 - **Supplementary sheets**: Staff Details, Staff Qualifications (matrix with per-cell colour), Patient Consents, ISF-Only, IP Shipments, Handover
-- **Styling**: dark blue headers with white bold text, row colour coding (green=Filed, amber=Pending, grey=N/A), auto-fit column widths
+- **Styling**: dark blue headers with white bold text, row colour coding (green=Filed, amber=Pending, grey=N/A), auto-fit column widths, tab-specific summary metrics block at top of each sheet
 - **Import**: updated to handle both old format (single 'All Documents' sheet) and new per-tab format
-
-#### Remaining export work (not yet implemented):
-1. Consent sheet needs two sections: PICF Version Management table + Patient Consent Tracker (per-patient with amber/green colour coding)
-2. Tab summary metrics block at top of each sheet (matching the summary metrics shown in the tracker UI for each tab)
 
 
 ### UI Structure (15 tabs)
