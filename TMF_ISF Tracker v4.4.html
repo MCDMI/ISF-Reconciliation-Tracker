@@ -663,7 +663,8 @@
         function formatDate(dateVal) { if (!dateVal) return '—'; let d = dateVal instanceof Date ? dateVal : new Date(dateVal); if (isNaN(d.getTime())) { if (typeof dateVal === 'number') d = new Date((dateVal - 25569) * 86400 * 1000); else return String(dateVal); } const day = String(d.getDate()).padStart(2, '0'); const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`; }
         function formatDateShort(dateVal) { if (!dateVal) return '—'; let d = dateVal instanceof Date ? dateVal : new Date(dateVal); if (isNaN(d.getTime())) return String(dateVal); const day = String(d.getDate()).padStart(2, '0'); const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${day}-${months[d.getMonth()]}-${String(d.getFullYear()).slice(-2)}`; }
         function setToday(inputId) { const input = document.getElementById(inputId); if (input) input.value = new Date().toISOString().split('T')[0]; }
-        function generateKey(doc) { return `${doc.name}|${doc.classification}|${doc.docDate}`; }
+        function generateKey(doc) { return `${doc.name}|${doc.classification}|${doc.docDate}|${doc.majorVersion}.${doc.minorVersion}`; }
+        function generateLegacyKey(doc) { return `${doc.name}|${doc.classification}|${doc.docDate}`; }
         function isActivePatientStatus(status) { const opt = patientStatusOptions.find(o => o.value === status); return opt ? opt.active : false; }
         function calculateExpiryStatus(expiryDateString) { if (!expiryDateString) return {status:'pending',class:'expiry-pending',label:'Pending'}; const expiry = new Date(expiryDateString); const today = new Date(); today.setHours(0,0,0,0); const oneMonthFromNow = new Date(today); oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1); if (expiry < today) return {status:'expired',class:'expiry-expired',label:'🔴 Expired'}; if (expiry < oneMonthFromNow) return {status:'expiring',class:'expiry-warning',label:'⚠️ Expiring'}; return {status:'current',class:'expiry-current',label:'✅ Current'}; }
         function getDocumentLevel(doc) { const country = String(doc.country || '').trim().toLowerCase(); const site = String(doc.studySite || '').trim().toLowerCase(); if (site && site !== 'none' && site !== '') return 'site'; if (country && country !== 'none' && country !== '') return 'country'; return 'study'; }
@@ -696,7 +697,49 @@
         function createNewSite() { const study = document.getElementById('newStudyNumber').value.trim(); const country = document.getElementById('newCountry').value; const site = document.getElementById('newSiteNumber').value.trim(); const pi = document.getElementById('newPiName').value.trim(); if (!study || !site || !country) { alert('Please enter Study Number, Country, and Site Number'); return; } const newKey = `${study}-${country}-${site}`; if (allSitesData[newKey]) { alert(`Site ${newKey} already exists.`); return; } allSitesData[newKey] = createEmptySiteData({studyNumber:study,siteNumber:site,country,piName:pi}); currentSiteKey = newKey; loadCurrentSiteData(); saveToStorage(); populateSiteSelector(); updateUploadZoneState(); renderAll(); closeModal('newSiteModal'); }
         function createEmptySiteData(info) { return {siteDocuments:[],countryDocuments:[],studyDocuments:[],isfTracking:{},hrecCategories:{},isfOnlyDocs:defaultIsfOnlyDocs.map(name => ({name,inIsf:false,version:'',comments:''})),siteInfo:info,lastUploadDate:null,staffList:[],picfVersions:[],patients:[],patientConsents:[],ipShipments:[],relabelingEntries:[],pharmacyTempLogs:[],pharmacyCalibration:[],sampleTempLogs:[],sampleCalibration:[],localLabs:[],handovers:[],manualDocuments:[],movedDocs:{},closeoutIsfStatus:{},closeoutComments:{},usedTrainingNames:[]}; }
         function switchSite() { const newKey = document.getElementById('siteSelector').value; if (newKey === currentSiteKey) return; if (currentSiteKey) saveCurrentSiteData(); currentSiteKey = newKey || null; staffExpandedState = {}; if (currentSiteKey) loadCurrentSiteData(); else resetCurrentSiteData(); saveToStorage(); updateCurrentSiteDisplay(); updateUploadZoneState(); renderAll(); document.getElementById('lastUpload').textContent = lastUploadDate ? `Last upload: ${formatDate(lastUploadDate)}` : ''; }
-        function loadCurrentSiteData() { if (!currentSiteKey || !allSitesData[currentSiteKey]) return; const data = allSitesData[currentSiteKey]; siteDocuments = data.siteDocuments || []; countryDocuments = data.countryDocuments || []; studyDocuments = data.studyDocuments || []; isfTracking = data.isfTracking || {}; hrecCategories = data.hrecCategories || {}; isfOnlyDocs = data.isfOnlyDocs || defaultIsfOnlyDocs.map(name => ({name,inIsf:false,version:'',comments:''})); siteInfo = data.siteInfo || {studyNumber:'',siteNumber:'',country:'',piName:''}; lastUploadDate = data.lastUploadDate; staffList = data.staffList || []; picfVersions = data.picfVersions || []; patients = data.patients || []; patientConsents = data.patientConsents || []; ipShipments = data.ipShipments || []; relabelingEntries = data.relabelingEntries || []; pharmacyTempLogs = data.pharmacyTempLogs || []; pharmacyCalibration = data.pharmacyCalibration || []; sampleTempLogs = data.sampleTempLogs || []; sampleCalibration = data.sampleCalibration || []; localLabs = data.localLabs || []; handovers = data.handovers || []; manualDocuments = data.manualDocuments || []; movedDocs = data.movedDocs || {}; closeoutIsfStatus = data.closeoutIsfStatus || {}; closeoutComments = data.closeoutComments || {}; usedTrainingNames = data.usedTrainingNames || []; }
+        function loadCurrentSiteData() { if (!currentSiteKey || !allSitesData[currentSiteKey]) return; const data = allSitesData[currentSiteKey]; siteDocuments = data.siteDocuments || []; countryDocuments = data.countryDocuments || []; studyDocuments = data.studyDocuments || []; isfTracking = data.isfTracking || {}; hrecCategories = data.hrecCategories || {}; isfOnlyDocs = data.isfOnlyDocs || defaultIsfOnlyDocs.map(name => ({name,inIsf:false,version:'',comments:''})); siteInfo = data.siteInfo || {studyNumber:'',siteNumber:'',country:'',piName:''}; lastUploadDate = data.lastUploadDate; staffList = data.staffList || []; picfVersions = data.picfVersions || []; patients = data.patients || []; patientConsents = data.patientConsents || []; ipShipments = data.ipShipments || []; relabelingEntries = data.relabelingEntries || []; pharmacyTempLogs = data.pharmacyTempLogs || []; pharmacyCalibration = data.pharmacyCalibration || []; sampleTempLogs = data.sampleTempLogs || []; sampleCalibration = data.sampleCalibration || []; localLabs = data.localLabs || []; handovers = data.handovers || []; manualDocuments = data.manualDocuments || []; movedDocs = data.movedDocs || {}; closeoutIsfStatus = data.closeoutIsfStatus || {}; closeoutComments = data.closeoutComments || {}; usedTrainingNames = data.usedTrainingNames || []; migrateKeys(); }
+        function migrateKeys() {
+            const allDocs = [...siteDocuments, ...countryDocuments, ...studyDocuments, ...manualDocuments];
+            let migrated = false;
+            // Migrate isfTracking keys from old 3-part format to new 4-part format
+            const oldKeys = Object.keys(isfTracking).filter(k => k.split('|').length === 3);
+            if (oldKeys.length > 0) {
+                oldKeys.forEach(oldKey => {
+                    const [name, classification, docDate] = oldKey.split('|');
+                    const matchingDocs = allDocs.filter(d => d.name === name && d.classification === classification && String(d.docDate) === docDate);
+                    if (matchingDocs.length > 0) {
+                        matchingDocs.forEach(doc => {
+                            const newKey = generateKey(doc);
+                            if (!isfTracking[newKey]) { isfTracking[newKey] = isfTracking[oldKey]; migrated = true; }
+                        });
+                    } else {
+                        // No matching doc found - keep with a default version suffix
+                        const newKey = `${oldKey}|1.0`;
+                        if (!isfTracking[newKey]) { isfTracking[newKey] = isfTracking[oldKey]; migrated = true; }
+                    }
+                    delete isfTracking[oldKey];
+                });
+            }
+            // Migrate hrecCategories
+            const oldHrecKeys = Object.keys(hrecCategories).filter(k => k.split('|').length === 3);
+            oldHrecKeys.forEach(oldKey => {
+                const [name, classification, docDate] = oldKey.split('|');
+                const matchingDocs = allDocs.filter(d => d.name === name && d.classification === classification && String(d.docDate) === docDate);
+                if (matchingDocs.length > 0) { matchingDocs.forEach(doc => { const newKey = generateKey(doc); if (!hrecCategories[newKey]) hrecCategories[newKey] = hrecCategories[oldKey]; }); }
+                else { const newKey = `${oldKey}|1.0`; if (!hrecCategories[newKey]) hrecCategories[newKey] = hrecCategories[oldKey]; }
+                delete hrecCategories[oldKey]; migrated = true;
+            });
+            // Migrate movedDocs
+            const oldMovedKeys = Object.keys(movedDocs).filter(k => k.split('|').length === 3);
+            oldMovedKeys.forEach(oldKey => {
+                const [name, classification, docDate] = oldKey.split('|');
+                const matchingDocs = allDocs.filter(d => d.name === name && d.classification === classification && String(d.docDate) === docDate);
+                if (matchingDocs.length > 0) { matchingDocs.forEach(doc => { const newKey = generateKey(doc); if (!movedDocs[newKey]) movedDocs[newKey] = movedDocs[oldKey]; }); }
+                else { const newKey = `${oldKey}|1.0`; if (!movedDocs[newKey]) movedDocs[newKey] = movedDocs[oldKey]; }
+                delete movedDocs[oldKey]; migrated = true;
+            });
+            if (migrated) { saveCurrentSiteData(); saveToStorage(); }
+        }
         function saveCurrentSiteData() { if (!currentSiteKey) return; allSitesData[currentSiteKey] = {siteDocuments,countryDocuments,studyDocuments,isfTracking,hrecCategories,isfOnlyDocs,siteInfo,lastUploadDate,staffList,picfVersions,patients,patientConsents,ipShipments,relabelingEntries,pharmacyTempLogs,pharmacyCalibration,sampleTempLogs,sampleCalibration,localLabs,handovers,manualDocuments,movedDocs,closeoutIsfStatus,closeoutComments,usedTrainingNames}; }
         function resetCurrentSiteData() { siteDocuments = []; countryDocuments = []; studyDocuments = []; isfTracking = {}; hrecCategories = {}; isfOnlyDocs = []; siteInfo = {studyNumber:'',siteNumber:'',country:'',piName:''}; lastUploadDate = null; staffList = []; picfVersions = []; patients = []; patientConsents = []; ipShipments = []; relabelingEntries = []; pharmacyTempLogs = []; pharmacyCalibration = []; sampleTempLogs = []; sampleCalibration = []; localLabs = []; handovers = []; manualDocuments = []; movedDocs = {}; closeoutIsfStatus = {}; closeoutComments = {}; usedTrainingNames = []; }
         function deleteCurrentSite() { if (!currentSiteKey) { alert('No site selected.'); return; } if (confirm(`Delete site ${siteInfo.studyNumber}-${siteInfo.siteNumber}? This cannot be undone.`)) { delete allSitesData[currentSiteKey]; currentSiteKey = null; resetCurrentSiteData(); saveToStorage(); populateSiteSelector(); updateCurrentSiteDisplay(); updateUploadZoneState(); renderAll(); document.getElementById('lastUpload').textContent = ''; } }
@@ -1058,7 +1101,7 @@
                 // Build column headers
                 const headers = ['Status', 'Document Name', 'Classification'];
                 if (tab.hasLevel) headers.push('Level');
-                if (tab.hasVersion) headers.push('Version');
+                headers.push('Version');
                 headers.push('Date');
                 if (tab.hasCategory) headers.push('Category');
                 headers.push('In ISF?', 'Reviewed', 'Comments');
@@ -1088,7 +1131,7 @@
                     const status = getStatus(doc);
                     const row = [getStatusText(status), doc.name, doc.classification || ''];
                     if (tab.hasLevel) row.push(getDocumentLevel(doc));
-                    if (tab.hasVersion) row.push(`${doc.majorVersion}.${doc.minorVersion}`);
+                    row.push(`${doc.majorVersion}.${doc.minorVersion}`);
                     row.push(formatDate(doc.docDate));
                     if (tab.hasCategory) row.push(hrecCategories[key] || '');
                     row.push(tracking.inIsf === 'Yes' ? 'Yes' : '', formatDate(tracking.dateReviewed), tracking.comments || '');
@@ -1413,11 +1456,11 @@
         }
 
         function importTrackerData(event) { const file = event.target.files[0]; if (!file) return; if (!currentSiteKey) { alert('Please select or create a site first.'); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = e => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type:'array',cellDates:true}); let importedDocs = 0;
-            // Import from legacy 'All Documents' sheet (old format)
-            if (workbook.Sheets['All Documents']) { const sheet = workbook.Sheets['All Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:4}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; isfTracking[key] = {inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:false}; importedDocs++; } }); }
+            // Import from legacy 'All Documents' sheet (old format - uses 3-part keys, will be migrated)
+            if (workbook.Sheets['All Documents']) { const sheet = workbook.Sheets['All Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:4}); rows.forEach(row => { if (row['Document Name']) { const version = row['Version'] || '1.0'; const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}|${version}`; isfTracking[key] = {inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:false}; importedDocs++; } }); }
             // Import from new per-tab sheets (new format)
             const tabSheetNames = ['Staff','Consent','IRB-IEC','Protocol-IB','IP','Labs','Monitoring','Correspondence','Legal','Setup','Manuals','Misc'];
-            tabSheetNames.forEach(sheetName => { if (workbook.Sheets[sheetName]) { const sheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(sheet, {range:6}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; if (!isfTracking[key]) { isfTracking[key] = {inIsf:row['In ISF?'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:row['Status'] === 'N/A',isfVersion:''}; } else { if (row['In ISF?'] === 'Yes') isfTracking[key].inIsf = 'Yes'; if (row['Comments']) isfTracking[key].comments = row['Comments']; if (row['Reviewed']) isfTracking[key].dateReviewed = row['Reviewed']; } importedDocs++; } }); } });
+            tabSheetNames.forEach(sheetName => { if (workbook.Sheets[sheetName]) { const sheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(sheet, {range:6}); rows.forEach(row => { if (row['Document Name']) { const version = row['Version'] || '1.0'; const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}|${version}`; if (!isfTracking[key]) { isfTracking[key] = {inIsf:row['In ISF?'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:row['Status'] === 'N/A',isfVersion:''}; } else { if (row['In ISF?'] === 'Yes') isfTracking[key].inIsf = 'Yes'; if (row['Comments']) isfTracking[key].comments = row['Comments']; if (row['Reviewed']) isfTracking[key].dateReviewed = row['Reviewed']; } importedDocs++; } }); } });
             // ISF-Only sheet (supports both old '✓' and new 'Yes' format)
             if (workbook.Sheets['ISF-Only']) { const sheet = workbook.Sheets['ISF-Only']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); isfOnlyDocs = rows.filter(r => r['Document Name']).map(row => ({name:row['Document Name'] || '',inIsf:row['In ISF?'] === '✓' || row['In ISF?'] === 'Yes' || row['In ISF'] === '✓' || row['In ISF'] === 'Yes',version:row['Version'] || '',comments:row['Comments'] || ''})); }
             // Handover sheet (supports both old 'Handovers' and new 'Handover' name)
