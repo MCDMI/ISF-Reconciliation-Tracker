@@ -981,8 +981,80 @@
             XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
 
             // === PER-TAB DOCUMENT SHEETS ===
+            const METRIC_STYLE = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: "D9E2F3" } } };
+            const METRIC_LABEL_STYLE = { font: { sz: 10 }, fill: { fgColor: { rgb: "D9E2F3" } } };
+
+            function getTabMetrics(tabId, docs) {
+                const filed = docs.filter(d => getStatus(d) === 'filed').length;
+                const pending = docs.filter(d => { const s = getStatus(d); return s === 'update' || s === 'new'; }).length;
+                switch (tabId) {
+                    case 'staff': {
+                        const active = staffList.filter(s => !s.delegationStopDate).length;
+                        let complete = 0, incomplete = 0;
+                        staffList.filter(s => !s.delegationStopDate).forEach(s => { if (calculateEssentialDocs(s).complete) complete++; else incomplete++; });
+                        return [['Total Staff', staffList.length], ['Active', active], ['Complete Docs', complete], ['Incomplete Docs', incomplete]];
+                    }
+                    case 'consent': {
+                        const activePatients = patients.filter(p => isActivePatientStatus(p.status)).length;
+                        let outstanding = 0, needsReview = 0, consentComplete = 0;
+                        patientConsents.forEach(c => { if (c.isNA) return; const patient = patients.find(p => p.id === c.patientId); if (!patient || !isActivePatientStatus(patient.status)) return; if (!c.dateSigned) outstanding++; else if (!c.dateReviewed) needsReview++; else consentComplete++; });
+                        return [['Total Patients', patients.length], ['Active', activePatients], ['Outstanding', outstanding], ['Needs Review', needsReview], ['Complete', consentComplete]];
+                    }
+                    case 'irb': {
+                        const subs = docs.filter(d => d.classification.includes('Submission')).length;
+                        const approvals = docs.filter(d => d.classification.includes('Decision') || d.classification.includes('Approval')).length;
+                        const comms = docs.filter(d => d.classification.includes('Communications')).length;
+                        return [['Submissions', subs], ['Approvals', approvals], ['Communications', comms]];
+                    }
+                    case 'protocol': {
+                        const allDocsLocal = [...siteDocuments, ...countryDocuments, ...studyDocuments, ...manualDocuments];
+                        const protocols = allDocsLocal.filter(d => protocolClassifications.includes(d.classification)).length;
+                        const psps = allDocsLocal.filter(d => pspClassifications.includes(d.classification)).length;
+                        const ibs = allDocsLocal.filter(d => ibClassifications.includes(d.classification)).length;
+                        const ibAors = allDocsLocal.filter(d => ibAorClassifications.includes(d.classification)).length;
+                        return [['Protocols', protocols], ['PSPs', psps], ['IBs', ibs], ['IB AoRs', ibAors]];
+                    }
+                    case 'ip':
+                        return [['IP Docs', docs.length], ['Shipments', ipShipments.length], ['Temp Logs', pharmacyTempLogs.length]];
+                    case 'labs': {
+                        const refRanges = docs.filter(d => d.classification === 'Normal Ranges').length;
+                        return [['Lab Docs', docs.length], ['Local Labs', localLabs.length], ['Reference Ranges', refRanges]];
+                    }
+                    case 'monitoring': {
+                        const reports = docs.filter(d => d.classification.includes('Report')).length;
+                        const letters = docs.filter(d => d.classification.includes('Letter')).length;
+                        return [['Reports', reports], ['Letters', letters]];
+                    }
+                    case 'correspondence': {
+                        const comms = docs.filter(d => d.classification.includes('Communications')).length;
+                        const notes = docs.filter(d => d.classification.includes('Filenotes')).length;
+                        return [['Communications', comms], ['Filenotes', notes]];
+                    }
+                    case 'legal': {
+                        const agreements = docs.filter(d => d.classification.includes('Agreement')).length;
+                        const indemnity = docs.filter(d => d.classification === 'Indemnity').length;
+                        const insurance = docs.filter(d => d.classification.includes('Insurance')).length;
+                        return [['Agreements', agreements], ['Indemnity', indemnity], ['Insurance', insurance]];
+                    }
+                    case 'setup': {
+                        const greenlight = docs.filter(d => d.classification.includes('Greenlight')).length;
+                        return [['Documents', docs.length], ['Greenlight', greenlight]];
+                    }
+                    case 'manuals': {
+                        const manFiled = docs.filter(d => { const key = generateKey(d); return isfTracking[key]?.inIsf === 'Yes'; }).length;
+                        return [['Total', docs.length], ['Filed', manFiled]];
+                    }
+                    case 'misc':
+                        return [['Total Documents', docs.length]];
+                    default:
+                        return [['Total', docs.length], ['Filed', filed], ['Pending', pending]];
+                }
+            }
+
             tabDefs.forEach(tab => {
                 const docs = getDocsForExportTab(tab.id);
+                const metrics = getTabMetrics(tab.id, docs);
+
                 // Build column headers
                 const headers = ['Status', 'Document Name', 'Classification'];
                 if (tab.hasLevel) headers.push('Level');
@@ -991,12 +1063,24 @@
                 if (tab.hasCategory) headers.push('Category');
                 headers.push('In ISF?', 'Reviewed', 'Comments');
 
+                // Build data with metrics block at top
                 const data = [
                     [`${tab.name.toUpperCase()} DOCUMENTS`],
                     [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber} | ${formatDate(new Date())}`],
-                    [''],
-                    headers
+                    ['']
                 ];
+
+                // Add metrics as label/value pairs in a row
+                const metricLabels = metrics.map(m => m[0]);
+                const metricValues = metrics.map(m => m[1]);
+                data.push(metricLabels);
+                data.push(metricValues);
+                const metricsLabelRow = data.length - 2;
+                const metricsValueRow = data.length - 1;
+
+                data.push(['']);  // blank separator
+                data.push(headers);
+                const headerRowIdx = data.length - 1;
 
                 docs.forEach(doc => {
                     const key = generateKey(doc);
@@ -1015,7 +1099,49 @@
                     data.push(['No documents in this section']);
                 }
 
-                const ws = styledSheet(data, 3, 0);
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const range = XLSX.utils.decode_range(ws['!ref']);
+
+                // Style title rows
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                    const addr0 = XLSX.utils.encode_cell({ r: 0, c: c });
+                    if (ws[addr0]) ws[addr0].s = TITLE_STYLE;
+                    const addr1 = XLSX.utils.encode_cell({ r: 1, c: c });
+                    if (ws[addr1]) ws[addr1].s = SUBTITLE_STYLE;
+                }
+
+                // Style metrics block
+                for (let c = 0; c < metrics.length; c++) {
+                    const labelAddr = XLSX.utils.encode_cell({ r: metricsLabelRow, c: c });
+                    const valueAddr = XLSX.utils.encode_cell({ r: metricsValueRow, c: c });
+                    if (ws[labelAddr]) ws[labelAddr].s = METRIC_LABEL_STYLE;
+                    if (ws[valueAddr]) ws[valueAddr].s = METRIC_STYLE;
+                }
+
+                // Style header row
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                    const addr = XLSX.utils.encode_cell({ r: headerRowIdx, c: c });
+                    if (ws[addr]) ws[addr].s = HEADER_STYLE;
+                }
+
+                // Colour-code data rows
+                for (let r = headerRowIdx + 1; r <= range.e.r; r++) {
+                    const statusAddr = XLSX.utils.encode_cell({ r: r, c: 0 });
+                    const statusVal = ws[statusAddr] ? String(ws[statusAddr].v || '').toLowerCase() : '';
+                    let fill = null;
+                    if (statusVal === 'filed') fill = STATUS_FILLS.filed;
+                    else if (statusVal === 'pending') fill = STATUS_FILLS.update;
+                    else if (statusVal === 'n/a') fill = STATUS_FILLS.na;
+                    if (fill) {
+                        for (let c = range.s.c; c <= range.e.c; c++) {
+                            const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                            if (ws[addr]) ws[addr].s = { fill: fill };
+                            else ws[addr] = { v: '', s: { fill: fill } };
+                        }
+                    }
+                }
+
+                ws['!cols'] = autoFitCols(data);
                 XLSX.utils.book_append_sheet(wb, ws, tab.name);
             });
 
@@ -1103,37 +1229,118 @@
                 XLSX.utils.book_append_sheet(wb, qualWs, 'Staff Qualifications');
             }
 
-            // === PATIENT CONSENTS SHEET ===
-            if (patients.length > 0) {
-                const consentData = [
-                    ['PATIENT CONSENTS'],
+            // === CONSENT SHEET (Two Sections) ===
+            {
+                const consentSheetData = [
+                    ['CONSENT MANAGEMENT'],
                     [`Study: ${siteInfo.studyNumber} | Site: ${siteInfo.siteNumber}`],
-                    [''],
-                    ['Patient ID', 'Status', 'Consent Type', 'Version', 'Date Signed', 'Date Reviewed', 'Investigator', '1st Visit?', 'Discussion?', 'Comments']
+                    ['']
                 ];
-                patients.forEach(patient => {
-                    const consents = patientConsents.filter(c => c.patientId === patient.id);
+
+                // Section 1: PICF Version Management
+                consentSheetData.push(['PICF VERSION MANAGEMENT']);
+                consentSheetData.push(['Type', 'Version', 'Version Date', 'HREC Approval', 'Site Approval', 'Implementation', 'Comments']);
+                const picfHeaderRow = consentSheetData.length - 1;
+                if (picfVersions.length > 0) {
+                    picfVersions.forEach(picf => {
+                        consentSheetData.push([
+                            picf.type || '',
+                            picf.version || '',
+                            picf.versionDate || '',
+                            picf.hrecApprovalDate || '',
+                            picf.siteApprovalDate || '',
+                            picf.implementation || '',
+                            picf.comments || ''
+                        ]);
+                    });
+                } else {
+                    consentSheetData.push(['No PICF versions defined']);
+                }
+
+                // Blank separator rows
+                consentSheetData.push(['']);
+                consentSheetData.push(['']);
+
+                // Section 2: Patient Consent Tracker
+                consentSheetData.push(['PATIENT CONSENT TRACKER']);
+                consentSheetData.push(['Patient ID', 'Status', 'Type', 'Version', 'Date Signed', 'Date Reviewed', 'Investigator', '1st Visit?', 'Discussion?', 'Comments']);
+                const patientHeaderRow = consentSheetData.length - 1;
+
+                // Track which rows are patient data for colour coding
+                const patientRowMeta = []; // {rowIndex, isComplete}
+                patients.forEach((patient, pIdx) => {
+                    const consents = patientConsents.filter(c => c.patientId === patient.id && !c.isNA);
                     if (consents.length === 0) {
-                        consentData.push([patient.patientId, patient.status, '', '', '', '', '', '', '', '']);
+                        consentSheetData.push([patient.patientId, patient.status, '', '', '', '', '', '', '', '']);
+                        patientRowMeta.push({ rowIndex: consentSheetData.length - 1, isComplete: false });
                     } else {
                         consents.forEach(consent => {
                             const picf = picfVersions.find(p => p.id === consent.picfVersionId);
                             const inv = staffList.find(s => s.id === consent.investigator);
-                            consentData.push([
+                            const isComplete = !!(consent.dateSigned && consent.dateReviewed);
+                            consentSheetData.push([
                                 patient.patientId, patient.status,
                                 picf ? picf.type : '', picf ? picf.version : '',
-                                consent.isNA ? 'N/A' : (consent.dateSigned || ''),
+                                consent.dateSigned || '',
                                 consent.dateReviewed || '',
                                 inv ? inv.name : '',
                                 consent.firstVisitAfterApproval ? 'Yes' : 'No',
                                 consent.discussionDocumented ? 'Yes' : 'No',
                                 consent.comments || ''
                             ]);
+                            patientRowMeta.push({ rowIndex: consentSheetData.length - 1, isComplete });
                         });
                     }
+                    // Blank row between patients for readability
+                    if (pIdx < patients.length - 1) {
+                        consentSheetData.push(['']);
+                    }
                 });
-                const ws = styledSheet(consentData, 3, -1);
-                XLSX.utils.book_append_sheet(wb, ws, 'Patient Consents');
+
+                const consentWs = XLSX.utils.aoa_to_sheet(consentSheetData);
+                const consentRange = XLSX.utils.decode_range(consentWs['!ref']);
+
+                // Style title rows
+                for (let c = consentRange.s.c; c <= consentRange.e.c; c++) {
+                    const addr0 = XLSX.utils.encode_cell({ r: 0, c: c });
+                    if (consentWs[addr0]) consentWs[addr0].s = TITLE_STYLE;
+                    const addr1 = XLSX.utils.encode_cell({ r: 1, c: c });
+                    if (consentWs[addr1]) consentWs[addr1].s = SUBTITLE_STYLE;
+                }
+
+                // Style section title rows (bold)
+                const sectionTitleRows = [3, patientHeaderRow - 1];
+                sectionTitleRows.forEach(r => {
+                    for (let c = consentRange.s.c; c <= consentRange.e.c; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: r, c: c });
+                        if (consentWs[addr]) consentWs[addr].s = { font: { bold: true, sz: 12 } };
+                    }
+                });
+
+                // Style PICF header row
+                for (let c = consentRange.s.c; c <= consentRange.e.c; c++) {
+                    const addr = XLSX.utils.encode_cell({ r: picfHeaderRow, c: c });
+                    if (consentWs[addr]) consentWs[addr].s = HEADER_STYLE;
+                }
+
+                // Style Patient Consent header row
+                for (let c = consentRange.s.c; c <= consentRange.e.c; c++) {
+                    const addr = XLSX.utils.encode_cell({ r: patientHeaderRow, c: c });
+                    if (consentWs[addr]) consentWs[addr].s = HEADER_STYLE;
+                }
+
+                // Colour code patient consent rows: green=complete, amber=incomplete
+                patientRowMeta.forEach(meta => {
+                    const fill = meta.isComplete ? STATUS_FILLS.filed : STATUS_FILLS.update;
+                    for (let c = consentRange.s.c; c <= consentRange.e.c; c++) {
+                        const addr = XLSX.utils.encode_cell({ r: meta.rowIndex, c: c });
+                        if (consentWs[addr]) consentWs[addr].s = { fill: fill };
+                        else consentWs[addr] = { v: '', s: { fill: fill } };
+                    }
+                });
+
+                consentWs['!cols'] = autoFitCols(consentSheetData);
+                XLSX.utils.book_append_sheet(wb, consentWs, 'Patient Consents');
             }
 
             // === ISF-ONLY SHEET ===
@@ -1210,7 +1417,7 @@
             if (workbook.Sheets['All Documents']) { const sheet = workbook.Sheets['All Documents']; const rows = XLSX.utils.sheet_to_json(sheet, {range:4}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; isfTracking[key] = {inIsf:row['In ISF'] === '✓' || row['In ISF'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:false}; importedDocs++; } }); }
             // Import from new per-tab sheets (new format)
             const tabSheetNames = ['Staff','Consent','IRB-IEC','Protocol-IB','IP','Labs','Monitoring','Correspondence','Legal','Setup','Manuals','Misc'];
-            tabSheetNames.forEach(sheetName => { if (workbook.Sheets[sheetName]) { const sheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; if (!isfTracking[key]) { isfTracking[key] = {inIsf:row['In ISF?'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:row['Status'] === 'N/A',isfVersion:''}; } else { if (row['In ISF?'] === 'Yes') isfTracking[key].inIsf = 'Yes'; if (row['Comments']) isfTracking[key].comments = row['Comments']; if (row['Reviewed']) isfTracking[key].dateReviewed = row['Reviewed']; } importedDocs++; } }); } });
+            tabSheetNames.forEach(sheetName => { if (workbook.Sheets[sheetName]) { const sheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(sheet, {range:6}); rows.forEach(row => { if (row['Document Name']) { const key = `${row['Document Name']}|${row['Classification'] || ''}|${row['Date'] || ''}`; if (!isfTracking[key]) { isfTracking[key] = {inIsf:row['In ISF?'] === 'Yes' ? 'Yes' : '',comments:row['Comments'] || '',dateReviewed:row['Reviewed'] || '',firstSeen:new Date().toISOString(),isNA:row['Status'] === 'N/A',isfVersion:''}; } else { if (row['In ISF?'] === 'Yes') isfTracking[key].inIsf = 'Yes'; if (row['Comments']) isfTracking[key].comments = row['Comments']; if (row['Reviewed']) isfTracking[key].dateReviewed = row['Reviewed']; } importedDocs++; } }); } });
             // ISF-Only sheet (supports both old '✓' and new 'Yes' format)
             if (workbook.Sheets['ISF-Only']) { const sheet = workbook.Sheets['ISF-Only']; const rows = XLSX.utils.sheet_to_json(sheet, {range:3}); isfOnlyDocs = rows.filter(r => r['Document Name']).map(row => ({name:row['Document Name'] || '',inIsf:row['In ISF?'] === '✓' || row['In ISF?'] === 'Yes' || row['In ISF'] === '✓' || row['In ISF'] === 'Yes',version:row['Version'] || '',comments:row['Comments'] || ''})); }
             // Handover sheet (supports both old 'Handovers' and new 'Handover' name)
