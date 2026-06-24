@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.sheetjs.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/xlsx-js-style@1.6.0/dist/xlsx.bundle.js)",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/xlsx-js-style@1.6.0/dist/xlsx.min.js)",
+      "Bash(curl -s https://data.jsdelivr.com/v1/packages/npm/xlsx-js-style@1.6.0)",
+      "Bash(python -m json.tool)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
