@@ -13,7 +13,19 @@
       "Bash(curl:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(pip install:*)",
+      "Bash(python -c \":*)",
+      "Bash(ls /c/Python*)",
+      "Read(//c/Users/BTZMD/AppData/Local/Programs/**)",
+      "Bash(cmd.exe /c \"where python\")",
+      "Bash(cmd.exe /c \"where py\")",
+      "Bash(/c/Users/BTZMD/AppData/Local/Microsoft/WindowsApps/python3.exe --version)",
+      "Bash(/c/Users/BTZMD/AppData/Local/Programs/Python/Python*/python.exe)",
+      "Bash(--version)",
+      "Bash(powershell.exe -Command \"Get-Command python | Select-Object -ExpandProperty Source\")",
+      "Bash(cp \"C:/Users/BTZMD/Documents/GitHub/ISF-Reconciliation-Tracker/Project Plan.docx\" /tmp/plan_copy.docx)",
+      "Bash(powershell.exe -Command \":*)"
     ]
   }
 }
