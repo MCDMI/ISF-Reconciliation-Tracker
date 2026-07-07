@@ -79,42 +79,70 @@ Implemented features:
 
 ## Backlog - Issues Identified During Live Use
 
-### 1. Reconciled Documents Sort Order
+### 1. Reconciled Documents Sort Order - FIXED
 
 When a document is ticked as reconciled it moves to the bottom of the list in some tabs but not others. This should be consistent across all tabs - decide on one behaviour and apply it everywhere.
 
-### 2. Consent Tab - Patient Management
+**Fix:** Extracted `sortDocsByStatus()` helper and applied it to all custom tab renderers (IRB, Correspondence, Legal, Manuals, Misc). All tabs now sort consistently: pending > new > filed > NA.
+
+### 2. Consent Tab - Patient Management - FIXED
 
 Need the ability to:
 - Delete a patient that has been created
 - Edit patient details after creation
 - Edit or delete ICF entries that have been added to a patient
 
-### 3. Colour Coding - New vs Filed
+**Fix:** Added `deletePatient()`, `editPatientId()`, and `deleteConsent()` functions. Patient cards now have Edit ID and Delete buttons in the header, and each consent row has a delete (×) button.
+
+### 3. Colour Coding - New vs Filed - ALREADY FIXED (pre-v4.4)
 
 Both 'New' and 'Filed' statuses are currently showing as green which makes them indistinguishable. 'New' should be changed to blue to match the original design intent.
 
-### 4. Duplicate Document Names
+**Status:** Already resolved — CSS has `.status-new` as blue (#e3f2fd) and `.status-filed` as green (#d4edda).
+
+### 4. Duplicate Document Names - FIXED
 
 When two documents have identical names, changes made to one (such as reconciling) are incorrectly applied to both. The system should treat documents with the same name as entirely separate items with independent state.
 
-### 5. SIV Report Classification
+**Fix:** Added `assignDupIndices()` function that detects documents sharing the same key and assigns a `dupIndex` to disambiguate them. `generateKey()` now appends `|dup{n}` for 2nd+ duplicates. Called on data load, file upload, and manual doc creation.
+
+### 5. SIV Report Classification - ALREADY FIXED (pre-v4.4)
 
 The SIV Report is currently marked as TMF-only but this is incorrect - it can be reconciled at site. This classification needs to be corrected.
 
-### 6. Correspondence Tab - Reconciliation
+**Status:** Already resolved — "Site Initiation Process Report" is NOT in `tmfOnlyClassifications`.
+
+### 6. Correspondence Tab - Reconciliation - ALREADY FIXED (pre-v4.4)
 
 Two issues:
 - The reconciliation control in the Correspondence tab is still a dropdown instead of a checkbox like all other tabs.
 - When 'Done' is selected via the dropdown it does not automatically update the reconciliation date to the current date.
 
-Both need to be fixed to match the behaviour of other tabs.
+**Status:** Already resolved — Correspondence tab uses the standard ISF checkbox with `toggleIsfCheckbox()`.
 
-### 7. Move Document Function
+### 7. Move Document Function - FIXED
 
 Two issues:
 - The Move Document option is only present in some tabs, not all. It should be available in every tab.
 - The dropdown menu for selecting the destination tab does not include all possible tabs - the full list of tabs should be available as destinations.
+
+**Fix:** Added move button column to IRB, Correspondence, Legal, Manuals, and Misc tab renderers. Added ISF-Only and Handover to `moveTabOptions`. Integrated `getDocsForTab()` filtering into custom renderers so moved docs appear/disappear correctly.
+
+---
+
+## Backlog - Enhancements Identified
+
+### 8. Excel Export - Staff Grid
+
+The exported Excel should include the full staff summary grid as it appears in the HTML (name, role, and status of each essential document per staff member). Currently the export does not replicate this view.
+
+### 9. Staff Tab - Filter by Missing Document
+
+Add filter controls to the staff summary grid so the CRA can filter by document type (e.g. show only staff missing CV, or missing FDF). This brings staff needing attention to the top for ease of collection.
+
+### 10. Staff Tab - Group Documents by Category
+
+The staff documents section currently renders as one long list. Split into category headings: Privacy Statements, CVs, Medical Licenses, Financial Disclosure Forms, GCP Certificates, Qualification Supporting Information. Each group under its own sub-heading.
 
 ---
 
