@@ -123,6 +123,8 @@
         .status-update { background: #fff0e0; }
         .doc-group-header td { background: var(--secondary-bg); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--bayer-teal-dark); padding: 10px 12px; border-top: 2px solid var(--border-color); }
         .doc-group-header:hover { background: var(--secondary-bg) !important; }
+        .clickable-header { cursor: pointer; position: relative; }
+        .clickable-header:hover { background: var(--bayer-teal-dark) !important; }
         .staff-summary-table th, .staff-summary-table td { text-align: center; padding: 8px 6px; }
         .staff-summary-table th:nth-child(2), .staff-summary-table td:nth-child(2) { text-align: left; }
         .staff-summary-table .doc-status { font-size: 14px; }
@@ -239,7 +241,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>📁 TMF/ISF Document Tracker <span style="font-size:12px;opacity:0.7;">v4.3</span></h1>
+            <h1>📁 TMF/ISF Document Tracker <span style="font-size:12px;opacity:0.7;">v4.5</span></h1>
             <div class="site-info">
                 <div class="site-selector-group">
                     <label>Site:</label>
@@ -331,7 +333,7 @@
                 <div class="section-card-body">
                     <div class="controls" style="margin-bottom:12px;"><select id="staffDocFilter" onchange="renderStaffTab()"><option value="all">All Staff</option><option value="privacy">Missing Privacy</option><option value="cv">Missing CV</option><option value="medLicense">Missing Med License</option><option value="gcp">Missing GCP</option><option value="fdf">Missing FDF</option><option value="iata">Missing IATA</option></select><input type="text" class="search-box" id="staffSearchBox" placeholder="Search staff..." oninput="renderStaffTab()"></div>
                     <table class="staff-summary-table">
-                        <thead><tr><th style="width:30px;"></th><th>Name</th><th>Role</th><th>Privacy</th><th>CV</th><th>Med Lic</th><th>GCP</th><th>FDF</th><th>IATA</th><th>Systems</th><th>Status</th></tr></thead>
+                        <thead><tr><th style="width:30px;"></th><th>Name</th><th>Role</th><th class="clickable-header" onclick="setStaffDocFilter('privacy')">Privacy</th><th class="clickable-header" onclick="setStaffDocFilter('cv')">CV</th><th class="clickable-header" onclick="setStaffDocFilter('medLicense')">Med Lic</th><th class="clickable-header" onclick="setStaffDocFilter('gcp')">GCP</th><th class="clickable-header" onclick="setStaffDocFilter('fdf')">FDF</th><th class="clickable-header" onclick="setStaffDocFilter('iata')">IATA</th><th>Systems</th><th>Status</th></tr></thead>
                         <tbody id="staffTableBody"><tr><td colspan="11" class="empty-state">No staff members. Add staff or upload TMF export.</td></tr></tbody>
                     </table>
                 </div>
@@ -825,6 +827,7 @@
 
 
         function calculateEssentialDocs(staff) { let required = ['privacy', 'cv', 'gcp']; if (requiresMedLicense(staff.role)) required.push('medLicense', 'fdf'); let present = 0; required.forEach(docType => { if (staff.documents && staff.documents[docType]) present++; }); return {present, total: required.length, complete: present === required.length}; }
+        function setStaffDocFilter(value) { const select = document.getElementById('staffDocFilter'); if (!select) return; select.value = select.value === value ? 'all' : value; renderStaffTab(); }
 
         function calculateSystemsSummary(staff) { let activeCount = 0, applicableCount = 0, hasIssues = false; systemsList.forEach(sys => { const status = staff.systemsAccess[sys]; if (status && status !== 'N/A') { applicableCount++; if (status === 'Active') activeCount++; if (status === 'Issues') hasIssues = true; } }); (staff.systemsAccess.other || []).forEach(sys => { if (sys.status !== 'N/A') { applicableCount++; if (sys.status === 'Active') activeCount++; if (sys.status === 'Issues') hasIssues = true; } }); if (hasIssues) return {icon:'🔴',label:'Issues'}; if (applicableCount === 0) return {icon:'—',label:'N/A'}; if (activeCount === applicableCount) return {icon:'✅',label:'All'}; if (activeCount === 0) return {icon:'⏳',label:'Pending'}; return {icon:'⚠️',label:`${activeCount}/${applicableCount}`}; }
 

@@ -144,6 +144,61 @@ Add filter controls to the staff summary grid so the CRA can filter by document 
 
 The staff documents section currently renders as one long list. Split into category headings: Privacy Statements, CVs, Medical Licenses, Financial Disclosure Forms, GCP Certificates, Qualification Supporting Information. Each group under its own sub-heading.
 
+### 11. Staff Tab - Clickable Column Headers to Sort by Missing
+
+The staff qualifications grid column headers (Privacy, CV, Med Lic, GCP, FDF, IATA) should be clickable. Clicking a column header sorts the grid so that staff missing that document appear at the top. This is more intuitive than the dropdown filter (which still works as an alternative).
+
+---
+
+## Phase 7 - Staff Training Bulk Entry & Tracking
+
+**Problem:** Training entry is currently one row at a time per staff member via the inline dropdown + date picker (`addTrainingInline`). Recording that all staff completed SIV training, or that all Pharmacists completed a specific training on the same date, requires repeating the same entry for every person. Very manual.
+
+**Data model context:** Each staff member has a `training` array of `{name, dateCompleted}` objects on `staffList[]`. Known training names are collected in `usedTrainingNames` (site-level, saved with site data). Roles come from the fixed role list ('PI','Sub-I','Study Coordinator','Research Nurse','Pharmacist','Lab Staff','Data Entry','Regulatory/Ethics','Staff','Other'). Any new feature must reuse this structure — no schema changes needed except where noted.
+
+**Build order:** 7.1 → 7.2 → 7.4 → 7.3 → 7.5 → 7.6. Each item is independently shippable; 7.1 alone solves the core pain point.
+
+### 7.1 Bulk Add Training Modal (build first — highest value, lowest risk)
+
+- "+ Bulk Add Training" button in the Staff Summary header next to "+ Add Staff"
+- Modal contains: training name dropdown (from `usedTrainingNames` plus "+ New training..." option, same pattern as inline add), single date picker, and a checkbox list of staff
+- Quick-select controls: "Select All Active" (active = no `delegationStopDate`), and per-role select buttons (e.g. tick all Pharmacists in one click)
+- On save: add the training to every selected staff member; skip silently if that staff member already has the same training name + date (dedupe); add name to `usedTrainingNames` if new
+- Covers both key scenarios: "everyone did SIV on date X" and "all Pharmacists did training Y on date X"
+
+### 7.2 Training Matrix View
+
+- Toggle on Staff tab: list view ↔ matrix view
+- Matrix: rows = staff (active first, delegation-log order), columns = training names from `usedTrainingNames`, cells = completion date or empty
+- Click empty cell → quick date entry (offer a "default date" field at top of matrix so repeated clicks reuse the same date)
+- Click column header → "mark all staff without this training as complete on [date]"
+- Empty cells double as a training gap analysis for monitoring visits
+- Consider adding this matrix to the Excel export (same green/red/grey per-cell coding as the existing Staff Qualifications Matrix sheet)
+
+### 7.3 Copy Training from Another Staff Member
+
+- When adding new staff mid-study, a "Copy training from..." dropdown listing existing staff; clones their training array (option: keep original dates vs enter a single new date)
+
+### 7.4 Paste-from-Excel Training Import
+
+- Textarea import: paste rows of Name / Training / Date (tab- or comma-separated, e.g. from a sponsor LMS report)
+- Fuzzy-match names against `staffList` (reuse the last-name matching approach from `extractStaffFromDocuments`)
+- Show a preview/confirm table of matched and unmatched rows before committing; unmatched rows can be skipped or assigned manually
+
+### 7.5 Training Templates per Role (optional — design decision needed)
+
+- Define required trainings per role (e.g. Pharmacist = IP Handling, IRT, Temp Excursion)
+- New staff auto-populate those trainings as pending (no date); requires allowing `dateCompleted` to be empty and rendering pending rows distinctly
+- Pending items surface as gaps; complete them via 7.1 or 7.2
+- Decide: templates configurable per site vs hardcoded defaults
+
+### 7.6 Training Log Photo/Scan Upload with OCR (build last — experimental)
+
+- Add Tesseract.js via CDN (same pattern as the xlsx-js-style include; note: confirm CDN access works through the Bayer proxy)
+- User uploads a photo/scan of a training log → OCR extracts text → parse training name, date, and attendee names → fuzzy-match against `staffList` → mandatory review/confirm table before anything is committed
+- Reality check: handwritten sign-in sheets OCR poorly; typed sheets and LMS printouts work well
+- Fallback mode if name recognition is unreliable: OCR extracts only training name + date from the header, then opens the 7.1 bulk modal pre-filled so the CRA just ticks attendees
+
 ---
 
 ## Technical Notes
