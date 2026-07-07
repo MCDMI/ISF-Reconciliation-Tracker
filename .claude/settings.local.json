@@ -25,7 +25,8 @@
       "Bash(--version)",
       "Bash(powershell.exe -Command \"Get-Command python | Select-Object -ExpandProperty Source\")",
       "Bash(cp \"C:/Users/BTZMD/Documents/GitHub/ISF-Reconciliation-Tracker/Project Plan.docx\" /tmp/plan_copy.docx)",
-      "Bash(powershell.exe -Command \":*)"
+      "Bash(powershell.exe -Command \":*)",
+      "Bash(cd:*)"
     ]
   }
 }
